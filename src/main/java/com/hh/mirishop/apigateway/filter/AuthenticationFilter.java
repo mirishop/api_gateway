@@ -30,29 +30,23 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
             log.info("헤더가 토큰을 가지고 있는지 검증");
             if (routeValidator.isSecured.test(exchange.getRequest())) {
                 ServerHttpRequest request = exchange.getRequest();
-                ServerHttpRequest modifiedRequest = null;
 
-                try {
-                    if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-                        throw new RuntimeException("Missing authorization header");
-                    }
-
-                    String authorizationHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-                    String token = extractTokenByHeader(authorizationHeader); // Remove "Bearer " prefix
-
-                    if (!jwtTokenProvider.validateToken(token)) {
-                        throw new RuntimeException("Invalid or expired JWT token");
-                    }
-
-                    Long extractMemberNumber = jwtTokenProvider.getMemberNumber(token);
-                    URI newUri = addParam(request.getURI(), "member", extractMemberNumber);
-                    log.info("Modified Request URI: {}", newUri.toString());
-                    modifiedRequest = exchange.getRequest().mutate().uri(newUri).build();
-
-                } catch (Exception e) {
-                    log.error(e.getMessage());
+                if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                     throw new RuntimeException("Missing authorization header");
                 }
+
+                String authorizationHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+                String token = extractTokenByHeader(authorizationHeader); // Remove "Bearer " prefix
+
+                if (!jwtTokenProvider.validateToken(token)) {
+                    throw new RuntimeException("Invalid or expired JWT token");
+                }
+
+                Long extractMemberNumber = jwtTokenProvider.getMemberNumber(token);
+                ServerHttpRequest modifiedRequest = request.mutate()
+                        .header("X-MEMBER-NUMBER", extractMemberNumber.toString())
+                        .build();
+
                 return chain.filter(exchange.mutate().request(modifiedRequest).build());
             }
             return chain.filter(exchange);
